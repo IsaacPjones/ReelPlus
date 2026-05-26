@@ -1,4 +1,4 @@
-<img src="images/RPbanner2.png" width="30%">
+<img src="Images\RPbanner2.png" width="80%">
 
 # ReelPlus
 A lightweight browser extension inspired by poor browser controls.
