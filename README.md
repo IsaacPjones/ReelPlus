@@ -1,4 +1,4 @@
-# Reel Plus
+# ReelPlus
 A lightweight browser extension inspired by Instagrams poor browser controls.
 Adds a draggable and easy to use control panel for Chrome browser versions of Instagram Reels.
 
@@ -13,6 +13,9 @@ Adds a draggable and easy to use control panel for Chrome browser versions of In
 - Draggable floating panel
 - Saved panel position using local browser storage
 - Dynamic play and mute icons
+
+## GUI
+<img src="Images/GUI.png" width="70%">
 
 ## Keyboard Shortcuts
 
