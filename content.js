@@ -8,6 +8,9 @@
   let timeLabel;
   let isSeeking = false;
 
+  let guardedVideos = new WeakSet();
+  let isApplyingAudioState = false;
+
   function formatTime(seconds) {
     if (!Number.isFinite(seconds)) return "0:00";
 
@@ -17,24 +20,55 @@
     return `${mins}:${secs}`;
   }
 
+  function scheduleAudioRestore(video = getActiveVideo()) {
+  if (!video) return;
+
+  applyPreferredAudioState(video);
+
+  setTimeout(() => applyPreferredAudioState(video), 50);
+  setTimeout(() => applyPreferredAudioState(video), 150);
+  setTimeout(() => applyPreferredAudioState(video), 300);
+  setTimeout(() => applyPreferredAudioState(video), 600);
+  setTimeout(() => applyPreferredAudioState(video), 1000);
+}
+
   function getActiveVideo() {
-    const videos = Array.from(document.querySelectorAll("video"));
+  const videos = Array.from(document.querySelectorAll("video"));
 
-    if (videos.length === 0) return null;
+  if (videos.length === 0) return null;
 
-    return (
-      videos.find((video) => {
-        const rect = video.getBoundingClientRect();
+  let bestVideo = null;
+  let bestScore = 0;
 
-        return (
-          rect.top >= 0 &&
-          rect.bottom <= window.innerHeight &&
-          rect.width > 100 &&
-          rect.height > 100
-        );
-      }) || videos[0]
-    );
-  }
+  videos.forEach((video) => {
+    const rect = video.getBoundingClientRect();
+
+    const visibleWidth =
+      Math.min(rect.right, window.innerWidth) - Math.max(rect.left, 0);
+
+    const visibleHeight =
+      Math.min(rect.bottom, window.innerHeight) - Math.max(rect.top, 0);
+
+    const visibleArea = Math.max(0, visibleWidth) * Math.max(0, visibleHeight);
+    const totalArea = rect.width * rect.height;
+
+    if (totalArea <= 0) return;
+
+    const visibilityRatio = visibleArea / totalArea;
+
+    const isUsableVideo =
+      rect.width > 100 &&
+      rect.height > 100 &&
+      visibilityRatio > 0.4;
+
+    if (isUsableVideo && visibilityRatio > bestScore) {
+      bestScore = visibilityRatio;
+      bestVideo = video;
+    }
+  });
+
+  return bestVideo || videos[0];
+}
 
   function loadPanelPosition() {
     if (!panel || !chrome?.storage?.local) return;
@@ -219,28 +253,72 @@
   }
 
   function restoreAudioState(video) {
+  applyPreferredAudioState(video);
+}
+
+function applyPreferredAudioState(video) {
   if (!video) return;
+
+  isApplyingAudioState = true;
 
   video.muted = preferredMuted;
   video.defaultMuted = preferredMuted;
 
   if (!preferredMuted && video.volume === 0) {
-    video.volume = currentVolume;
+    video.volume = currentVolume || 0.2;
   }
+
+  updateButtonStates();
+
+  setTimeout(() => {
+    isApplyingAudioState = false;
+  }, 0);
+}
+
+  function attachAudioGuardsToVideos() {
+  const videos = Array.from(document.querySelectorAll("video"));
+
+  videos.forEach((video) => {
+    if (guardedVideos.has(video)) return;
+
+    guardedVideos.add(video);
+
+    video.addEventListener("play", () => {
+      scheduleAudioRestore(video);
+    });
+
+    video.addEventListener("playing", () => {
+      scheduleAudioRestore(video);
+    });
+
+    video.addEventListener("ended", () => {
+      scheduleAudioRestore(video);
+    });
+
+    video.addEventListener("timeupdate", () => {
+      if (!preferredMuted && !video.paused && video.muted) {
+        scheduleAudioRestore(video);
+      }
+    });
+
+    video.addEventListener("volumechange", () => {
+      if (isApplyingAudioState) return;
+
+      if (video.volume > 0) {
+        currentVolume = video.volume;
+      }
+
+      preferredMuted = video.muted || video.volume === 0;
+      updateButtonStates();
+    });
+  });
 }
 
   function playAndRestoreAudio(video) {
   if (!video) return;
 
   video.play();
-
-  restoreAudioState(video);
-
-  setTimeout(() => restoreAudioState(video), 50);
-  setTimeout(() => restoreAudioState(video), 150);
-  setTimeout(() => restoreAudioState(video), 300);
-  setTimeout(() => restoreAudioState(video), 600);
-  setTimeout(() => restoreAudioState(video), 1000);
+  scheduleAudioRestore(video);
 }
 
   function seekBy(seconds) {
@@ -296,16 +374,16 @@
     currentVolume = video.volume;
   }
 
-  preferredMuted = !preferredMuted;
+  preferredMuted = !(video.muted || video.volume === 0);
 
-  video.muted = preferredMuted;
-  video.defaultMuted = preferredMuted;
+  applyPreferredAudioState(video);
 
-  if (!preferredMuted && video.volume === 0) {
-    video.volume = currentVolume;
-  }
-
-  updateButtonStates();
+  // Instagram sometimes applies its own mute state after a new Reel loads,
+  // so reapply the user's intended state shortly after the click.
+  setTimeout(() => applyPreferredAudioState(getActiveVideo()), 50);
+  setTimeout(() => applyPreferredAudioState(getActiveVideo()), 150);
+  setTimeout(() => applyPreferredAudioState(getActiveVideo()), 300);
+  setTimeout(() => applyPreferredAudioState(getActiveVideo()), 600);
 }
 
   function changeVolume(amount) {
@@ -485,9 +563,10 @@ seekSlider.addEventListener("touchend", () => {
   window.addEventListener("keydown", addKeyboardControls);
 
   setInterval(() => {
+  attachAudioGuardsToVideos();
   updateSeekSlider();
   updateButtonStates();
-}, 100);
+}, 150);
 
   const observer = new MutationObserver(() => {
     if (!document.getElementById("reels-controller-panel")) {
