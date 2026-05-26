@@ -1,3 +1,5 @@
+<img src="images/RPbanner2.png" width="30%">
+
 # ReelPlus
 A lightweight browser extension inspired by poor browser controls.
 Adds a draggable and easy to use control panel for Chrome browser versions of Instagram Reels and TikTok.
