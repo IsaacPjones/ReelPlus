@@ -10,6 +10,7 @@
 
   let guardedVideos = new WeakSet();
   let isApplyingAudioState = false;
+  let lastActiveVideo = null;
 
   function formatTime(seconds) {
     if (!Number.isFinite(seconds)) return "0:00";
@@ -68,6 +69,22 @@
   });
 
   return bestVideo || videos[0];
+}
+
+function handleActiveVideoChange() {
+  const video = getActiveVideo();
+  if (!video) return;
+
+  if (video !== lastActiveVideo) {
+    lastActiveVideo = video;
+
+    // Apply the user's preferred audio state to the newly active Reel.
+    scheduleAudioRestore(video);
+
+    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 100);
+    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 300);
+    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 700);
+  }
 }
 
   function loadPanelPosition() {
@@ -302,15 +319,28 @@ function applyPreferredAudioState(video) {
     });
 
     video.addEventListener("volumechange", () => {
-      if (isApplyingAudioState) return;
+  if (isApplyingAudioState) return;
 
-      if (video.volume > 0) {
-        currentVolume = video.volume;
-      }
+  if (video.volume > 0) {
+    currentVolume = video.volume;
+  }
 
-      preferredMuted = video.muted || video.volume === 0;
-      updateButtonStates();
-    });
+  const activeVideo = getActiveVideo();
+
+  // If Instagram mutes the active video even though the user preference is sound,
+  // restore sound instead of treating that automatic mute as a user choice.
+  if (
+    video === activeVideo &&
+    !preferredMuted &&
+    video.muted &&
+    !video.paused
+  ) {
+    scheduleAudioRestore(video);
+    return;
+  }
+
+  updateButtonStates();
+});
   });
 }
 
@@ -564,6 +594,7 @@ seekSlider.addEventListener("touchend", () => {
 
   setInterval(() => {
   attachAudioGuardsToVideos();
+  handleActiveVideoChange();
   updateSeekSlider();
   updateButtonStates();
 }, 150);
