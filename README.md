@@ -1,6 +1,8 @@
-A lightweight browser extension that adds a draggable upgraded control panel for Instagram Reels.
+# Reel Plus
+A lightweight browser extension inspired by Instagrams poor browser controls.
+Adds a draggable and easy to use control panel for Chrome browser versions of Instagram Reels.
 
-# Features
+## Features
 
 - Play and pause button
 - Replay button
