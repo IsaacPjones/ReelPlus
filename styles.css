@@ -1,0 +1,169 @@
+#reels-controller-panel {
+  position: fixed;
+  left: max(600px, env(safe-area-inset-left));
+  bottom: max(600px, env(safe-area-inset-bottom));
+  z-index: 999999;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  width: 250px;
+  max-width: calc(100vw - 32px);
+  padding: 12px;
+
+  background: rgba(18, 18, 18, 0.88);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 16px;
+  box-sizing: border-box;
+
+  font-family: Arial, sans-serif;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+}
+
+/* Drag handle */
+#rc-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  color: white;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+
+  cursor: grab;
+  user-select: none;
+
+  padding: 7px 8px;
+  border-radius: 12px;
+
+  background: rgba(255, 255, 255, 0.1);
+}
+
+#rc-drag-handle:active {
+  cursor: grabbing;
+}
+
+.rc-drag-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.rc-title {
+  letter-spacing: 0.2px;
+}
+
+/* Seek slider */
+#rc-seek-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+#rc-seek-slider {
+  width: 100%;
+  cursor: pointer;
+  accent-color: white;
+}
+
+#rc-time-label {
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  text-align: center;
+  user-select: none;
+}
+
+/* Buttons */
+#rc-button-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rc-control-btn {
+  min-height: 48px;
+
+  border: none;
+  border-radius: 12px;
+  padding: 8px 10px;
+
+  cursor: pointer;
+
+  background: rgba(255, 255, 255, 0.95);
+  color: #111;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+
+  transition:
+    transform 120ms ease,
+    background 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.rc-control-btn:hover {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+
+.rc-control-btn:active {
+  transform: scale(0.96);
+}
+
+.rc-icon {
+  font-size: 17px;
+  line-height: 1;
+}
+
+.rc-label {
+  white-space: nowrap;
+}
+
+/* Make replay button span full width if you want it emphasized */
+#rc-replay {
+  grid-column: span 2;
+}
+
+/* Small screens */
+@media (max-width: 600px) {
+  #reels-controller-panel {
+    left: 12px;
+    right: 12px;
+    bottom: max(16px, env(safe-area-inset-bottom));
+
+    width: auto;
+    max-width: none;
+  }
+
+  #rc-button-row {
+    grid-template-columns: repeat(5, 1fr);
+  }
+
+  #rc-replay {
+    grid-column: auto;
+  }
+
+  .rc-control-btn {
+    min-width: 0;
+    min-height: 44px;
+    padding: 8px 6px;
+  }
+
+  .rc-label {
+    display: none;
+  }
+
+  .rc-icon {
+    font-size: 18px;
+  }
+}

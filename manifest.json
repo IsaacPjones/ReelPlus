@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Instagram Reels Controller",
+  "version": "1.0.0",
+  "description": "Adds simple video, volume, and mute controls to Instagram Reels.",
+  "permissions": ["storage"],
+  "content_scripts": [
+    {
+      "matches": ["https://www.instagram.com/reels/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"]
+    }
+  ]
+}
