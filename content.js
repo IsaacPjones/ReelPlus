@@ -2,6 +2,7 @@
   let panel;
   let currentVolume = 0.2;
   let wasMutedBeforePause = false;
+  let preferredMuted = false;
 
   let seekSlider;
   let timeLabel;
@@ -207,27 +208,29 @@
   }
 
   function restoreAudioState(video) {
-    if (!video) return;
+  if (!video) return;
 
-    video.muted = wasMutedBeforePause;
-    video.defaultMuted = wasMutedBeforePause;
+  video.muted = preferredMuted;
+  video.defaultMuted = preferredMuted;
 
-    if (!wasMutedBeforePause && video.volume === 0) {
-      video.volume = currentVolume;
-    }
+  if (!preferredMuted && video.volume === 0) {
+    video.volume = currentVolume;
   }
+}
 
   function playAndRestoreAudio(video) {
-    if (!video) return;
+  if (!video) return;
 
-    video.play();
+  video.play();
 
-    restoreAudioState(video);
+  restoreAudioState(video);
 
-    setTimeout(() => restoreAudioState(video), 50);
-    setTimeout(() => restoreAudioState(video), 150);
-    setTimeout(() => restoreAudioState(video), 300);
-  }
+  setTimeout(() => restoreAudioState(video), 50);
+  setTimeout(() => restoreAudioState(video), 150);
+  setTimeout(() => restoreAudioState(video), 300);
+  setTimeout(() => restoreAudioState(video), 600);
+  setTimeout(() => restoreAudioState(video), 1000);
+}
 
   function seekBy(seconds) {
   const video = getActiveVideo();
@@ -244,48 +247,55 @@
 }
 
   function togglePlay() {
-    const video = getActiveVideo();
-    if (!video) return;
+  const video = getActiveVideo();
+  if (!video) return;
 
-    rememberVolume(video);
+  rememberVolume(video);
 
-    if (video.paused) {
-      playAndRestoreAudio(video);
-    } else {
-      wasMutedBeforePause = video.muted;
-      video.pause();
-    }
-    updateButtonStates();
+  if (video.paused) {
+    playAndRestoreAudio(video);
+  } else {
+    preferredMuted = video.muted;
+    wasMutedBeforePause = video.muted;
+    video.pause();
   }
+
+  updateButtonStates();
+}
 
   function replayVideo() {
-    const video = getActiveVideo();
-    if (!video) return;
+  const video = getActiveVideo();
+  if (!video) return;
 
-    rememberVolume(video);
+  rememberVolume(video);
 
-    wasMutedBeforePause = video.muted;
+  preferredMuted = video.muted;
 
-    video.currentTime = 0;
-    playAndRestoreAudio(video);
-  }
+  video.currentTime = 0;
+  playAndRestoreAudio(video);
+
+  updateButtonStates();
+}
 
   function toggleMute() {
-    const video = getActiveVideo();
-    if (!video) return;
+  const video = getActiveVideo();
+  if (!video) return;
 
-    if (!video.muted && video.volume > 0) {
-      currentVolume = video.volume;
-    }
-
-    video.muted = !video.muted;
-    video.defaultMuted = video.muted;
-
-    if (!video.muted && video.volume === 0) {
-      video.volume = currentVolume;
-    }
-    updateButtonStates();
+  if (!video.muted && video.volume > 0) {
+    currentVolume = video.volume;
   }
+
+  preferredMuted = !preferredMuted;
+
+  video.muted = preferredMuted;
+  video.defaultMuted = preferredMuted;
+
+  if (!preferredMuted && video.volume === 0) {
+    video.volume = currentVolume;
+  }
+
+  updateButtonStates();
+}
 
   function changeVolume(amount) {
     const video = getActiveVideo();
@@ -366,25 +376,32 @@
     timeLabel = document.getElementById("rc-time-label");
 
     seekSlider.addEventListener("input", () => {
-      const video = getActiveVideo();
-      if (!video) return;
+  const video = getActiveVideo();
+  if (!video) return;
 
-      isSeeking = true;
+  isSeeking = true;
 
-      const newTime = Number(seekSlider.value);
-      video.currentTime = newTime;
+  const newTime = Number(seekSlider.value);
+  video.currentTime = newTime;
 
-      if (timeLabel && Number.isFinite(video.duration)) {
-        timeLabel.textContent = `${formatTime(newTime)} / ${formatTime(
-          video.duration
-        )}`;
-      }
-    });
+  if (timeLabel && Number.isFinite(video.duration)) {
+    timeLabel.textContent = `${formatTime(newTime)} / ${formatTime(video.duration)}`;
+  }
+});
 
-    seekSlider.addEventListener("change", () => {
-      isSeeking = false;
-      updateSeekSlider();
-    });
+seekSlider.addEventListener("change", () => {
+  isSeeking = false;
+  updateSeekSlider();
+  seekSlider.blur();
+});
+
+seekSlider.addEventListener("mouseup", () => {
+  seekSlider.blur();
+});
+
+seekSlider.addEventListener("touchend", () => {
+  seekSlider.blur();
+});
 
     document.getElementById("rc-play").addEventListener("click", togglePlay);
     document.getElementById("rc-replay").addEventListener("click", replayVideo);
@@ -402,33 +419,40 @@
   }
 
   function addKeyboardControls(event) {
-    const tag = document.activeElement?.tagName?.toLowerCase();
+  const active = document.activeElement;
+  const tag = active?.tagName?.toLowerCase();
+  const type = active?.getAttribute("type");
 
-    if (tag === "input" || tag === "textarea") return;
-
-    if (event.key === " ") {
-      event.preventDefault();
-      togglePlay();
-    }
-
-    if (event.key.toLowerCase() === "m") {
-      toggleMute();
-    }
-
-    if (event.key.toLowerCase() === "r") {
-      replayVideo();
-    }
-
-    if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        seekBy(-1);
-    }
-
-    if (event.key === "ArrowRight") {
-        event.preventDefault();
-        seekBy(1);
-    }
+  if (
+    tag === "textarea" ||
+    (tag === "input" && type !== "range")
+  ) {
+    return;
   }
+
+  if (event.key === " ") {
+    event.preventDefault();
+    togglePlay();
+  }
+
+  if (event.key.toLowerCase() === "m") {
+    toggleMute();
+  }
+
+  if (event.key.toLowerCase() === "r") {
+    replayVideo();
+  }
+
+  if (event.key === "ArrowLeft") {
+    event.preventDefault();
+    seekBy(-1);
+  }
+
+  if (event.key === "ArrowRight") {
+    event.preventDefault();
+    seekBy(1);
+  }
+}
 
   createPanel();
 
