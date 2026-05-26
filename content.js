@@ -11,6 +11,9 @@
   let guardedVideos = new WeakSet();
   let isApplyingAudioState = false;
   let lastActiveVideo = null;
+  let isApplyingVolumeState = false;
+  let userPaused = false;
+  let userHasInteracted = false;
 
   function formatTime(seconds) {
     if (!Number.isFinite(seconds)) return "0:00";
@@ -31,6 +34,19 @@
   setTimeout(() => applyPreferredAudioState(video), 300);
   setTimeout(() => applyPreferredAudioState(video), 600);
   setTimeout(() => applyPreferredAudioState(video), 1000);
+}
+
+function forcePauseIfUserPaused(video = getActiveVideo()) {
+  if (!video) return;
+
+  if (userPaused && !video.paused) {
+    video.pause();
+  }
+}
+
+function applyPreferredVolume(video) {
+  if (!video) return;
+  video.volume = currentVolume;
 }
 
   function getActiveVideo() {
@@ -78,12 +94,26 @@ function handleActiveVideoChange() {
   if (video !== lastActiveVideo) {
     lastActiveVideo = video;
 
-    // Apply the user's preferred audio state to the newly active Reel.
+    applyPreferredVolume(video);
     scheduleAudioRestore(video);
 
-    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 100);
-    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 300);
-    setTimeout(() => scheduleAudioRestore(getActiveVideo()), 700);
+    setTimeout(() => {
+      const activeVideo = getActiveVideo();
+      applyPreferredVolume(activeVideo);
+      scheduleAudioRestore(activeVideo);
+    }, 100);
+
+    setTimeout(() => {
+      const activeVideo = getActiveVideo();
+      applyPreferredVolume(activeVideo);
+      scheduleAudioRestore(activeVideo);
+    }, 300);
+
+    setTimeout(() => {
+      const activeVideo = getActiveVideo();
+      applyPreferredVolume(activeVideo);
+      scheduleAudioRestore(activeVideo);
+    }, 700);
   }
 }
 
@@ -269,6 +299,38 @@ function handleActiveVideoChange() {
     }
   }
 
+  function updateVolumeLabel() {
+  const video = getActiveVideo();
+  const volumeLabel = document.getElementById("rc-volume-label");
+
+  if (!volumeLabel) return;
+
+  if (!video) {
+    volumeLabel.textContent = "Volume: --%";
+    return;
+  }
+
+  const volumePercent = Math.round(video.volume * 100);
+
+  if (video.muted || video.volume === 0) {
+    volumeLabel.textContent = `Volume: ${volumePercent}% (Muted)`;
+  } else {
+    volumeLabel.textContent = `Volume: ${volumePercent}%`;
+  }
+}
+
+function applyPreferredVolume(video) {
+  if (!video) return;
+
+  isApplyingVolumeState = true;
+
+  video.volume = currentVolume;
+
+  setTimeout(() => {
+    isApplyingVolumeState = false;
+  }, 0);
+}
+
   function restoreAudioState(video) {
   applyPreferredAudioState(video);
 }
@@ -278,14 +340,34 @@ function applyPreferredAudioState(video) {
 
   isApplyingAudioState = true;
 
-  video.muted = preferredMuted;
-  video.defaultMuted = preferredMuted;
+  try {
+    // Muting is always safe.
+    if (preferredMuted) {
+      video.muted = true;
+      video.defaultMuted = true;
+    } else {
+      // Unmuting can be blocked by Chrome before user interaction.
+      const hasBrowserActivation =
+        navigator.userActivation && navigator.userActivation.hasBeenActive;
 
-  if (!preferredMuted && video.volume === 0) {
-    video.volume = currentVolume || 0.2;
+      if (!userHasInteracted && !hasBrowserActivation) {
+        // Do not force unmute yet. Wait until the user interacts.
+        isApplyingAudioState = false;
+        updateButtonStates();
+        updateVolumeLabel();
+        return;
+      }
+
+      video.muted = false;
+      video.defaultMuted = false;
+      applyPreferredVolume(video);
+    }
+  } catch (error) {
+    console.warn("ReelPlus could not apply audio state:", error);
   }
 
   updateButtonStates();
+  updateVolumeLabel();
 
   setTimeout(() => {
     isApplyingAudioState = false;
@@ -301,12 +383,22 @@ function applyPreferredAudioState(video) {
     guardedVideos.add(video);
 
     video.addEventListener("play", () => {
-      scheduleAudioRestore(video);
-    });
+  if (userPaused) {
+    video.pause();
+    return;
+  }
 
-    video.addEventListener("playing", () => {
-      scheduleAudioRestore(video);
-    });
+  scheduleAudioRestore(video);
+});
+
+video.addEventListener("playing", () => {
+  if (userPaused) {
+    video.pause();
+    return;
+  }
+
+  scheduleAudioRestore(video);
+});
 
     video.addEventListener("ended", () => {
       scheduleAudioRestore(video);
@@ -319,34 +411,38 @@ function applyPreferredAudioState(video) {
     });
 
     video.addEventListener("volumechange", () => {
-  if (isApplyingAudioState) return;
+      if (isApplyingAudioState || isApplyingVolumeState) return;
 
-  if (video.volume > 0) {
-    currentVolume = video.volume;
-  }
+      const activeVideo = getActiveVideo();
 
-  const activeVideo = getActiveVideo();
+      // If this is not the active video, ignore it.
+      if (video !== activeVideo) return;
 
-  // If Instagram mutes the active video even though the user preference is sound,
-  // restore sound instead of treating that automatic mute as a user choice.
-  if (
-    video === activeVideo &&
-    !preferredMuted &&
-    video.muted &&
-    !video.paused
-  ) {
-    scheduleAudioRestore(video);
-    return;
-  }
+      // If Instagram/TikTok changes the active video's volume,
+      // restore the user's preferred ReelPlus volume instead of saving the site's value.
+      if (Math.abs(video.volume - currentVolume) > 0.02) {
+        applyPreferredVolume(video);
+        updateVolumeLabel();
+        return;
+      }
 
-  updateButtonStates();
-});
+      // If Instagram/TikTok mutes the active video even though
+      // the user preference is sound, restore sound.
+      if (!preferredMuted && video.muted && !video.paused) {
+        scheduleAudioRestore(video);
+        return;
+      }
+
+      updateButtonStates();
+      updateVolumeLabel();
+    });
   });
 }
 
   function playAndRestoreAudio(video) {
   if (!video) return;
 
+  userPaused = false;
   video.play();
   scheduleAudioRestore(video);
 }
@@ -366,20 +462,22 @@ function applyPreferredAudioState(video) {
 }
 
   function togglePlay() {
+  userHasInteracted = true;
+
   const video = getActiveVideo();
   if (!video) return;
 
-  rememberVolume(video);
-
   if (video.paused) {
+    userPaused = false;
     playAndRestoreAudio(video);
   } else {
-    preferredMuted = video.muted;
-    wasMutedBeforePause = video.muted;
+    userPaused = true;
+    preferredMuted = video.muted || video.volume === 0;
     video.pause();
   }
 
   updateButtonStates();
+  updateVolumeLabel();
 }
 
   function replayVideo() {
@@ -397,41 +495,52 @@ function applyPreferredAudioState(video) {
 }
 
   function toggleMute() {
+  userHasInteracted = true;
+
   const video = getActiveVideo();
   if (!video) return;
-
-  if (!video.muted && video.volume > 0) {
-    currentVolume = video.volume;
-  }
 
   preferredMuted = !(video.muted || video.volume === 0);
 
   applyPreferredAudioState(video);
 
-  // Instagram sometimes applies its own mute state after a new Reel loads,
-  // so reapply the user's intended state shortly after the click.
   setTimeout(() => applyPreferredAudioState(getActiveVideo()), 50);
   setTimeout(() => applyPreferredAudioState(getActiveVideo()), 150);
   setTimeout(() => applyPreferredAudioState(getActiveVideo()), 300);
   setTimeout(() => applyPreferredAudioState(getActiveVideo()), 600);
+
+  updateButtonStates();
+  updateVolumeLabel();
 }
 
   function changeVolume(amount) {
-    const video = getActiveVideo();
-    if (!video) return;
+  const video = getActiveVideo();
+  if (!video) return;
 
-    video.volume = Math.min(1, Math.max(0, video.volume + amount));
+  const nextVolume = Math.min(1, Math.max(0, currentVolume + amount));
 
-    if (video.volume > 0) {
-      currentVolume = video.volume;
-      video.muted = false;
-      video.defaultMuted = false;
-    } else {
-      video.muted = true;
-      video.defaultMuted = true;
-    }
-    updateButtonStates();
+  currentVolume = nextVolume;
+
+  isApplyingVolumeState = true;
+  video.volume = currentVolume;
+
+  if (currentVolume > 0) {
+    preferredMuted = false;
+    video.muted = false;
+    video.defaultMuted = false;
+  } else {
+    preferredMuted = true;
+    video.muted = true;
+    video.defaultMuted = true;
   }
+
+  setTimeout(() => {
+    isApplyingVolumeState = false;
+  }, 0);
+
+  updateButtonStates();
+  updateVolumeLabel();
+}
 
   function createPanel() {
     if (panel) return;
@@ -457,6 +566,10 @@ function applyPreferredAudioState(video) {
     />
     <span id="rc-time-label">0:00 / 0:00</span>
   </div>
+
+  <div id="rc-volume-row">
+  <span id="rc-volume-label">Volume: 20%</span>
+</div>
 
   <div id="rc-button-row">
     <button id="rc-play" class="rc-control-btn" aria-label="Play or pause video">
@@ -590,24 +703,61 @@ seekSlider.addEventListener("touchend", () => {
 
   createPanel();
 
-  window.addEventListener("keydown", addKeyboardControls);
+window.addEventListener("keydown", addKeyboardControls);
 
-  setInterval(() => {
+// Step 6: handle tab switching / minimizing
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (userPaused) {
+      forcePauseIfUserPaused();
+    }
+    return;
+  }
+
+  setTimeout(() => forcePauseIfUserPaused(), 50);
+  setTimeout(() => forcePauseIfUserPaused(), 200);
+  setTimeout(() => forcePauseIfUserPaused(), 500);
+});
+
+// Step 7: handle browser window losing / regaining focus
+window.addEventListener("blur", () => {
+  if (userPaused) {
+    forcePauseIfUserPaused();
+  }
+});
+
+window.addEventListener("focus", () => {
+  setTimeout(() => forcePauseIfUserPaused(), 50);
+  setTimeout(() => forcePauseIfUserPaused(), 200);
+  setTimeout(() => forcePauseIfUserPaused(), 500);
+});
+
+function markUserInteraction() {
+  userHasInteracted = true;
+}
+
+window.addEventListener("pointerdown", markUserInteraction, true);
+window.addEventListener("keydown", markUserInteraction, true);
+window.addEventListener("touchstart", markUserInteraction, true);
+
+setInterval(() => {
   attachAudioGuardsToVideos();
   handleActiveVideoChange();
+  forcePauseIfUserPaused();
   updateSeekSlider();
   updateButtonStates();
-}, 150);
+  updateVolumeLabel();
+}, 250);
 
-  const observer = new MutationObserver(() => {
-    if (!document.getElementById("reels-controller-panel")) {
-      panel = null;
-      createPanel();
-    }
-  });
+const observer = new MutationObserver(() => {
+  if (!document.getElementById("reels-controller-panel")) {
+    panel = null;
+    createPanel();
+  }
+});
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+observer.observe(document.body, {
+  childList: true,
+  subtree: true,
+});
 })();
