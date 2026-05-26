@@ -2,11 +2,11 @@
   "manifest_version": 3,
   "name": "ReelPlus",
   "version": "1.0.0",
-  "description": "Adds draggable playback, replay, mute, volume, and seek controls for Instagram Reels.",
+  "description": "Adds draggable playback, replay, mute, volume, and seek controls for Instagram Reels and Tiktok.",
   "permissions": ["storage"],
   "content_scripts": [
     {
-      "matches": ["https://www.instagram.com/reels/*"],
+      "matches": ["https://www.instagram.com/reels/*", "https://www.tiktok.com/*"],
       "js": ["content.js"],
       "css": ["styles.css"]
     }
