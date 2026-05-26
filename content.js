@@ -161,8 +161,10 @@
 
   const playIcon = document.getElementById("rc-play-icon");
   const playLabel = document.getElementById("rc-play-label");
+
   const muteIcon = document.getElementById("rc-mute-icon");
   const muteLabel = document.getElementById("rc-mute-label");
+  const soundWave = document.getElementById("rc-sound-wave");
 
   if (playIcon && playLabel) {
     if (video.paused) {
@@ -176,11 +178,20 @@
 
   if (muteIcon && muteLabel) {
     if (video.muted || video.volume === 0) {
-      muteIcon.textContent = "🔇";
       muteLabel.textContent = "Muted";
+
+      if (soundWave) {
+        soundWave.setAttribute("d", "M16 9l4 6M20 9l-4 6");
+      }
     } else {
-      muteIcon.textContent = "🔊";
       muteLabel.textContent = "Sound";
+
+      if (soundWave) {
+        soundWave.setAttribute(
+          "d",
+          "M16 8.5c1.2 1.2 1.8 2.4 1.8 3.5s-.6 2.3-1.8 3.5"
+        );
+      }
     }
   }
 }
@@ -346,8 +357,23 @@
 </button>
 
 <button id="rc-mute" class="rc-control-btn" aria-label="Mute or unmute video">
-  <span id="rc-mute-icon" class="rc-icon">🔇</span>
-  <span id="rc-mute-label" class="rc-label">Mute</span>
+  <span id="rc-mute-icon" class="rc-icon rc-svg-icon">
+    <svg id="rc-mute-svg" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        d="M4 9v6h4l5 4V5L8 9H4z"
+        fill="currentColor"
+      />
+      <path
+        id="rc-sound-wave"
+        d="M16 8.5c1.2 1.2 1.8 2.4 1.8 3.5s-.6 2.3-1.8 3.5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+      />
+    </svg>
+  </span>
+  <span id="rc-mute-label" class="rc-label">Sound</span>
 </button>
 
     <button id="rc-replay" class="rc-control-btn" aria-label="Replay video">
